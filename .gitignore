@@ -1,0 +1,34 @@
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Gradle
+.gradle/
+build/
+bin/
+
+# Eclipse
+.classpath
+.project
+.settings/
+
+# Run configurations (но оставляем конфиги мода)
+run/logs/
+run/crash-reports/
+run/screenshots/
+run/saves/
+run/resourcepacks/
+run/server-resource-packs/
+run/*.log
+run/options.txt
+run/usercache.json
+run/usernamecache.json
+
+# Launch configs
+*.launch
+
+# OS
+.DS_Store
+Thumbs.db
