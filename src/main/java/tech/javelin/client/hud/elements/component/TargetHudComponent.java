@@ -264,19 +264,19 @@ public class TargetHudComponent extends DraggableHudElement {
       float healthPercent = MathHelper.clamp(currentHp / maxHp, 0.0F, 1.0F);
       float absorptionPercent = MathHelper.clamp(absorption / maxHp, 0.0F, 1.0F);
       
-      com.mojang.blaze3d.systems.RenderSystem.enableBlend();
-      com.mojang.blaze3d.systems.RenderSystem.defaultBlendFunc();
-      com.mojang.blaze3d.systems.RenderSystem.setShader(net.minecraft.client.gl.ShaderProgramKeys.POSITION_COLOR);
-      
       net.minecraft.client.util.math.MatrixStack matrices = ctx.getMatrices();
       matrices.push();
       matrices.translate(centerX, centerY, 0);
       
       org.joml.Matrix4f matrix = matrices.peek().getPositionMatrix();
-      net.minecraft.client.render.BufferBuilder bufferBuilder = net.minecraft.client.render.Tessellator.getInstance().begin(net.minecraft.client.render.VertexFormat.DrawMode.TRIANGLE_FAN, net.minecraft.client.render.VertexFormats.POSITION_COLOR);
+      
+      com.mojang.blaze3d.systems.RenderSystem.enableBlend();
+      com.mojang.blaze3d.systems.RenderSystem.defaultBlendFunc();
+      com.mojang.blaze3d.systems.RenderSystem.setShader(net.minecraft.client.gl.ShaderProgramKeys.POSITION_COLOR);
       
       // Фон круга (темный)
       ColorRGBA bgColor = new ColorRGBA(20, 20, 20, (int)(alpha * 180));
+      net.minecraft.client.render.BufferBuilder bufferBuilder = net.minecraft.client.render.Tessellator.getInstance().begin(net.minecraft.client.render.VertexFormat.DrawMode.TRIANGLE_FAN, net.minecraft.client.render.VertexFormats.POSITION_COLOR);
       this.drawCircle(bufferBuilder, matrix, 0, 0, radius, 64, bgColor);
       net.minecraft.client.render.BufferRenderer.drawWithGlobalProgram(bufferBuilder.end());
       
@@ -312,15 +312,15 @@ public class TargetHudComponent extends DraggableHudElement {
       this.drawCircle(bufferBuilder, matrix, 0, 0, radius - 3.5F, 64, innerBg);
       net.minecraft.client.render.BufferRenderer.drawWithGlobalProgram(bufferBuilder.end());
       
+      com.mojang.blaze3d.systems.RenderSystem.disableBlend();
+      
       matrices.pop();
       
-      // Текст HP в центре круга
+      // Текст HP в центре круга (используем жирный шрифт)
       String hpText = String.format("%.0f", currentHp);
-      Font font = Fonts.MEDIUM.getFont(5.5F);
+      Font font = Fonts.BOLD.getFont(6.0F);
       float textWidth = font.width(hpText);
-      ctx.drawText(font, hpText, centerX - textWidth / 2.0F, centerY - 2.5F, ColorRGBA.WHITE.withAlpha(alpha * 255.0F));
-      
-      com.mojang.blaze3d.systems.RenderSystem.disableBlend();
+      ctx.drawText(font, hpText, centerX - textWidth / 2.0F, centerY - 3.0F, ColorRGBA.WHITE.withAlpha(alpha * 255.0F));
    }
 
    /**
