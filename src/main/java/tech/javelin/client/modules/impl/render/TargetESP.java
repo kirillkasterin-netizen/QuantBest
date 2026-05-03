@@ -38,7 +38,7 @@ import tech.javelin.utility.render.display.shader.DrawUtil;
 )
 public class TargetESP extends Module {
    public static final TargetESP INSTANCE = new TargetESP();
-   private final ModeSetting mode = new ModeSetting("Мод", new String[]{"Маркер", "Призраки"});
+   private final ModeSetting mode = new ModeSetting("Мод", new String[]{"Маркер", "Призраки", "Сферы"});
    private final Animation animation;
    private final Animation animation2;
    private Entity lastTarget;
@@ -70,7 +70,11 @@ public class TargetESP extends Module {
          this.drawSpiritsTrack(e);
       }
 
-      if (!this.mode.is("Призраки")) {
+      if (this.mode.is("Сферы")) {
+         this.drawSpheres(e);
+      }
+
+      if (!this.mode.is("Призраки") && !this.mode.is("Сферы")) {
          if (!this.textureLoaded) {
             MinecraftClient.getInstance().getTextureManager().registerTexture(Identifier.of("javelin", "hud/marker.png"), new ResourceTexture(Identifier.of("javelin", "hud/marker.png")));
             this.textureLoaded = true;
@@ -207,5 +211,104 @@ public class TargetESP extends Module {
          }
 
       }
+   }
+
+   private void drawSpheres(EventRender3D event3D) {
+      Aura aura = Aura.INSTANCE;
+      this.animation2.update(aura.getTarget() != null && aura.isEnabled());
+      
+      if (this.animation2.getValue() == 0.0F) {
+         return;
+      }
+
+      Entity target = aura.getTarget();
+      if (target != null) {
+         if (this.lastTarget == null) {
+            this.currentTime = System.currentTimeMillis();
+         }
+         this.lastTarget = target;
+      }
+
+      if (this.lastTarget == null) {
+         return;
+      }
+
+      // Обновляем угол вращения
+      this.animationNurik += (float)(System.currentTimeMillis() - this.currentTime) / 50.0F;
+      this.currentTime = System.currentTimeMillis();
+
+      MatrixStack matrices = event3D.getMatrix();
+      Vec3d camPos = mc.gameRenderer.getCamera().getPos();
+      
+      double x = interpolate(this.lastTarget.getX(), this.lastTarget.lastRenderX, (double)event3D.getPartialTicks()) - camPos.x;
+      double y = interpolate(this.lastTarget.getY(), this.lastTarget.lastRenderY, (double)event3D.getPartialTicks()) - camPos.y;
+      double z = interpolate(this.lastTarget.getZ(), this.lastTarget.lastRenderZ, (double)event3D.getPartialTicks()) - camPos.z;
+      
+      // Высота на уровне торса (примерно середина высоты игрока)
+      double torsoHeight = this.lastTarget.getHeight() * 0.6D;
+      
+      // Размер сферы
+      float sphereSize = 0.2F;
+      
+      // Радиус вращения вокруг игрока
+      float orbitRadius = 0.6F;
+      
+      RenderSystem.setShader(ShaderProgramKeys.POSITION_TEX_COLOR);
+      RenderSystem.setShaderTexture(0, Javelin.id("icons/glow.png"));
+      RenderSystem.enableBlend();
+      RenderSystem.blendFuncSeparate(770, 1, 0, 1);
+      RenderSystem.disableCull();
+      RenderSystem.disableDepthTest();
+      RenderSystem.depthMask(false);
+      
+      ColorRGBA color = Javelin.getInstance().getThemeManager().getCurrentTheme().getColor();
+      
+      // Рисуем три сферы, вращающиеся вокруг игрока
+      for (int i = 0; i < 3; i++) {
+         float angle = this.animationNurik * 2.0F + (i * 120.0F); // 120 градусов между сферами
+         double offsetX = Math.cos(Math.toRadians(angle)) * orbitRadius;
+         double offsetZ = Math.sin(Math.toRadians(angle)) * orbitRadius;
+         
+         drawSphere(matrices, x + offsetX, y + torsoHeight, z + offsetZ, sphereSize, color, this.animation2.getValue());
+      }
+      
+      RenderSystem.enableDepthTest();
+      RenderSystem.depthMask(true);
+      RenderSystem.disableBlend();
+      RenderSystem.blendFunc(770, 771);
+      RenderSystem.enableCull();
+   }
+
+   private void drawSphere(MatrixStack matrices, double x, double y, double z, float size, ColorRGBA color, float alpha) {
+      matrices.push();
+      matrices.translate(x, y, z);
+      
+      // Количество слоев для создания эффекта сферы с свечением
+      int layers = 8;
+      
+      for (int layer = 0; layer < layers; layer++) {
+         float layerSize = size * (1.0F + (float)layer * 0.15F);
+         float layerAlpha = alpha * (1.0F - (float)layer / (float)layers) * 0.8F;
+         
+         matrices.push();
+         matrices.multiply(mc.gameRenderer.getCamera().getRotation());
+         matrices.scale(layerSize, layerSize, layerSize);
+         
+         int colorWithAlpha = color.withAlpha((int)(layerAlpha * 255.0F)).getRGB();
+         
+         BufferBuilder buffer = Tessellator.getInstance().begin(DrawMode.QUADS, VertexFormats.POSITION_TEXTURE_COLOR);
+         
+         // Рисуем квад для создания эффекта сферы
+         buffer.vertex(matrices.peek().getPositionMatrix(), -1.0F, -1.0F, 0.0F).texture(0.0F, 0.0F).color(colorWithAlpha);
+         buffer.vertex(matrices.peek().getPositionMatrix(), -1.0F, 1.0F, 0.0F).texture(0.0F, 1.0F).color(colorWithAlpha);
+         buffer.vertex(matrices.peek().getPositionMatrix(), 1.0F, 1.0F, 0.0F).texture(1.0F, 1.0F).color(colorWithAlpha);
+         buffer.vertex(matrices.peek().getPositionMatrix(), 1.0F, -1.0F, 0.0F).texture(1.0F, 0.0F).color(colorWithAlpha);
+         
+         BufferRenderer.drawWithGlobalProgram(buffer.end());
+         
+         matrices.pop();
+      }
+      
+      matrices.pop();
    }
 }

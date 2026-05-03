@@ -21,26 +21,37 @@ public final class ClickPearl extends Module {
    public static final ClickPearl INSTANCE = new ClickPearl();
    private boolean ignore;
    private boolean use;
+   private int freezeTicks = 0;
 
    public void onEnable() {
       this.use = true;
+      this.freezeTicks = 2; // Заморозка на 2 тика при включении
       super.onEnable();
    }
 
    @EventTarget
    @Native
    private void onTick(EventTickMovement e) {
-      if (this.use) {
-         this.setIgnore(true);
-         if (this.mode.is("Хвх")) {
-            PlayerInventoryUtil.swapAndUseHvH(Items.ENDER_PEARL);
-         } else {
-            PlayerInventoryUtil.swapAndUseLegit(Items.ENDER_PEARL);
+      // Заморозка во время броска
+      if (freezeTicks > 0) {
+         freezeTicks--;
+         if (mc.player != null) {
+            mc.player.setVelocity(0, mc.player.getVelocity().y, 0);
          }
+         
+         // Бросаем перлу после заморозки
+         if (freezeTicks == 0 && this.use) {
+            this.setIgnore(true);
+            
+            if (this.mode.is("Легит")) {
+               PlayerInventoryUtil.swapAndUseLegit(Items.ENDER_PEARL);
+            }
 
-         this.setIgnore(false);
-         this.use = false;
-         this.toggle();
+            this.setIgnore(false);
+            this.use = false;
+            this.toggle();
+         }
+         return;
       }
    }
 
