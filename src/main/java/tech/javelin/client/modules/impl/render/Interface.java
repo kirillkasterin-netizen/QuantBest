@@ -19,7 +19,7 @@ import tech.javelin.client.hud.elements.component.KeybindsComponent;
 import tech.javelin.client.hud.elements.component.NotifyComponent;
 import tech.javelin.client.hud.elements.component.PotionsComponent;
 //import tech.javelin.client.hud.elements.component.StaffComponent;
-import tech.javelin.client.hud.elements.component.SwapIndicatorComponent;
+//import tech.javelin.client.hud.elements.component.SwapIndicatorComponent;
 import tech.javelin.client.hud.elements.component.TargetHudComponent;
 import tech.javelin.client.hud.elements.component.WatermarkComponent;
 import tech.javelin.client.hud.elements.draggable.DraggableHudElement;
@@ -39,8 +39,9 @@ import tech.javelin.utility.render.display.base.GuiUtil;
 )
 public final class Interface extends Module {
    public static final Interface INSTANCE = new Interface();
-   private final MultiBooleanSetting elementsSetting = MultiBooleanSetting.create("Элементы", List.of("Ватермарка", "Эффекты", "Уведомления", "Информация", "Бинды", "Таргет худ", "Свап"));
+   private final MultiBooleanSetting elementsSetting = MultiBooleanSetting.create("Элементы", List.of("Ватермарка", "Эффекты", "Уведомления", "Информация", "Бинды", "Таргет худ"));
    public final tech.javelin.client.modules.api.setting.impl.ModeSetting targetHudModeSetting = new tech.javelin.client.modules.api.setting.impl.ModeSetting("Target HUD Mode", new String[]{"Default", "Rocket", "Duck", "3D"});
+   public final tech.javelin.client.modules.api.setting.impl.ModeSetting targetHudHealthModeSetting = new tech.javelin.client.modules.api.setting.impl.ModeSetting("Health Display", new String[]{"Bar", "Circle"});
    public final tech.javelin.client.modules.api.setting.impl.BooleanSetting targetHudOutSetting = new tech.javelin.client.modules.api.setting.impl.BooleanSetting("Target HUD Out Animation", true);
    private final List<DraggableHudElement> elements = new ArrayList();
    private DraggableHudElement draggingElement = null;
@@ -58,9 +59,10 @@ public final class Interface extends Module {
       this.addElement(new InformationComponent("Information", 0.0F, 0.0F, 960.0F, 495.5F, 10.0F, 41.5F, DraggableHudElement.Align.TOP_LEFT));
       this.addElement(new KeybindsComponent("Keybinds", 349.0F, 0.0F, 960.0F, 495.5F, -122.0F, 73.0F, DraggableHudElement.Align.TOP_RIGHT));
       this.addElement(new TargetHudComponent("TargetHUD", 166.5F, 128.5F, 960.0F, 495.5F, 0.0F, 31.75F, DraggableHudElement.Align.CENTER));
-      SwapIndicatorComponent swapIndicator = new SwapIndicatorComponent("SwapIndicator", 349.0F, 0.0F, 960.0F, 495.5F, -122.0F, 150.0F, DraggableHudElement.Align.TOP_RIGHT);
-      this.addElement(swapIndicator);
-      tech.javelin.client.modules.impl.combat.AutoSwap.INSTANCE.setSwapIndicator(swapIndicator);
+      // SwapIndicatorComponent временно отключен - файл отсутствует
+      //SwapIndicatorComponent swapIndicator = new SwapIndicatorComponent("SwapIndicator", 349.0F, 0.0F, 960.0F, 495.5F, -122.0F, 150.0F, DraggableHudElement.Align.TOP_RIGHT);
+      //this.addElement(swapIndicator);
+      //tech.javelin.client.modules.impl.combat.AutoSwap.INSTANCE.setSwapIndicator(swapIndicator);
    }
 
    public void onEnable() {

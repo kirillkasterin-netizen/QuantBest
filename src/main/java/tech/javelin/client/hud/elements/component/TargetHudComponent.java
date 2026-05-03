@@ -63,8 +63,6 @@ public class TargetHudComponent extends DraggableHudElement {
    private void renderTargetHud(CustomDrawContext ctx, LivingEntity target, float animation) {
       float posX = this.x;
       float posY = this.y;
-      float width = 86.0F;
-      float height = 30.0F;
       Theme theme = Javelin.getInstance().getThemeManager().getCurrentTheme();
       float hp = ScoreboardHealth.INSTANCE.isEnabled() ? PlayerIntersectionUtil.getHealth(target) : target.getHealth();
       this.healthAnimation.update(hp / target.getMaxHealth());
@@ -76,6 +74,14 @@ public class TargetHudComponent extends DraggableHudElement {
       }
 
       this.gappleAnimation.update(target.getAbsorptionAmount() / target.getMaxHealth());
+      
+      // Проверяем режим отображения HP
+      tech.javelin.client.modules.impl.render.Interface interfaceModule = tech.javelin.client.modules.impl.render.Interface.INSTANCE;
+      String healthMode = interfaceModule.targetHudHealthModeSetting.getValue().getName();
+      
+      float width = healthMode.equals("Circle") ? 116.0F : 86.0F; // Увеличиваем ширину для круга
+      float height = 30.0F;
+      
       StencilUtil.push();
       DrawUtil.drawMetanoise(ctx.getMatrices(), posX, posY, width, height, this.toggleAnimationMetanoise.getValue(), 3.0F, new ColorRGBA(0, 0, 0, 140), theme.getColor().withAlpha(255));
       StencilUtil.read(1);
@@ -100,13 +106,21 @@ public class TargetHudComponent extends DraggableHudElement {
       
       MsdfRenderer.renderText(Fonts.REGULAR, target == mc.player ? NameProtect.getCustomName() : target.getNameForScoreboard(), 7.25F, ColorRGBA.WHITE.withAlpha(animation * 255.0F).getRGB(), ctx.getMatrices().peek().getPositionMatrix(), posX + 29.0F, posY + 5.5F, 0.0F, true, 0.7F, 1.0F, 56.0F);
       ctx.drawText(Fonts.REGULAR.getFont(6.5F), "HP: " + String.format("%.0f", hp) + (target.getAbsorptionAmount() > 0.0F ? String.format(" (%.1f)", target.getAbsorptionAmount()) : "").replace(",", "."), posX + 29.75F, posY + 14.25F, ColorRGBA.WHITE.withAlpha(animation * 255.0F));
-      DrawUtil.drawRoundedRect(ctx.getMatrices(), posX + 29.0F, posY + 22.0F, width - 33.0F, 3.25F, BorderRadius.all(0.25F), theme.getSecondColor().darker(0.5F).withAlpha(animation * 255.0F), theme.getSecondColor().darker(0.5F).withAlpha(animation * 255.0F), theme.getColor().darker(0.5F).withAlpha(animation * 255.0F), theme.getColor().darker(0.5F).withAlpha(animation * 255.0F));
-      DrawUtil.drawRoundedRect(ctx.getMatrices(), posX + 29.0F, posY + 22.0F, MathHelper.clamp((width - 33.0F) * this.outdatedHealthAnimation.getValue(), 0.0F, width - 33.0F), 3.25F, BorderRadius.all(0.25F), theme.getSecondColor().darker(0.35F).withAlpha(animation * 255.0F), theme.getSecondColor().darker(0.35F).withAlpha(animation * 255.0F), theme.getColor().darker(0.35F).withAlpha(animation * 255.0F), theme.getColor().darker(0.35F).withAlpha(animation * 255.0F));
-      if (this.gappleAnimation.getValue() < this.healthAnimation.getValue()) {
-         DrawUtil.drawRoundedRect(ctx.getMatrices(), posX + 29.0F, posY + 22.0F, MathHelper.clamp((width - 33.0F) * this.healthAnimation.getValue(), 0.0F, width - 33.0F), 3.25F, BorderRadius.all(0.25F), theme.getSecondColor().withAlpha(animation * 255.0F), theme.getSecondColor().withAlpha(animation * 255.0F), theme.getColor().withAlpha(animation * 255.0F), theme.getColor().withAlpha(animation * 255.0F));
-      }
+      
+      if (healthMode.equals("Circle")) {
+         // Рисуем круговой индикатор HP справа
+         this.drawCircleHealth(ctx, posX + width - 18.0F, posY + 15.0F, 12.0F, hp, target.getMaxHealth(), target.getAbsorptionAmount(), animation, theme);
+      } else {
+         // Рисуем обычную полоску HP
+         DrawUtil.drawRoundedRect(ctx.getMatrices(), posX + 29.0F, posY + 22.0F, width - 33.0F, 3.25F, BorderRadius.all(0.25F), theme.getSecondColor().darker(0.5F).withAlpha(animation * 255.0F), theme.getSecondColor().darker(0.5F).withAlpha(animation * 255.0F), theme.getColor().darker(0.5F).withAlpha(animation * 255.0F), theme.getColor().darker(0.5F).withAlpha(animation * 255.0F));
+         DrawUtil.drawRoundedRect(ctx.getMatrices(), posX + 29.0F, posY + 22.0F, MathHelper.clamp((width - 33.0F) * this.outdatedHealthAnimation.getValue(), 0.0F, width - 33.0F), 3.25F, BorderRadius.all(0.25F), theme.getSecondColor().darker(0.35F).withAlpha(animation * 255.0F), theme.getSecondColor().darker(0.35F).withAlpha(animation * 255.0F), theme.getColor().darker(0.35F).withAlpha(animation * 255.0F), theme.getColor().darker(0.35F).withAlpha(animation * 255.0F));
+         if (this.gappleAnimation.getValue() < this.healthAnimation.getValue()) {
+            DrawUtil.drawRoundedRect(ctx.getMatrices(), posX + 29.0F, posY + 22.0F, MathHelper.clamp((width - 33.0F) * this.healthAnimation.getValue(), 0.0F, width - 33.0F), 3.25F, BorderRadius.all(0.25F), theme.getSecondColor().withAlpha(animation * 255.0F), theme.getSecondColor().withAlpha(animation * 255.0F), theme.getColor().withAlpha(animation * 255.0F), theme.getColor().withAlpha(animation * 255.0F));
+         }
 
-      DrawUtil.drawRoundedRect(ctx.getMatrices(), posX + 29.0F, posY + 22.0F, MathHelper.clamp((width - 33.0F) * this.gappleAnimation.getValue(), 0.0F, width - 33.0F), 3.25F, BorderRadius.all(0.25F), new ColorRGBA(255, 209, 0, animation * 255.0F), new ColorRGBA(255, 209, 0, animation * 255.0F), new ColorRGBA(255, 246, 20, animation * 255.0F), new ColorRGBA(255, 246, 20, animation * 255.0F));
+         DrawUtil.drawRoundedRect(ctx.getMatrices(), posX + 29.0F, posY + 22.0F, MathHelper.clamp((width - 33.0F) * this.gappleAnimation.getValue(), 0.0F, width - 33.0F), 3.25F, BorderRadius.all(0.25F), new ColorRGBA(255, 209, 0, animation * 255.0F), new ColorRGBA(255, 209, 0, animation * 255.0F), new ColorRGBA(255, 246, 20, animation * 255.0F), new ColorRGBA(255, 246, 20, animation * 255.0F));
+      }
+      
       StencilUtil.pop();
       if (target instanceof PlayerEntity) {
          this.drawArmor(ctx, (PlayerEntity)target, posX + 3.0F, posY - 12.0F, 0.0F, 0.0F, 0.0F);
@@ -241,5 +255,121 @@ public class TargetHudComponent extends DraggableHudElement {
          this.toggleAnimation.update(1.0F);
       }
 
+   }
+
+   /**
+    * Рисует круговой индикатор HP с плавным сглаживанием и градиентом темы
+    */
+   private void drawCircleHealth(CustomDrawContext ctx, float centerX, float centerY, float radius, float currentHp, float maxHp, float absorption, float alpha, Theme theme) {
+      float healthPercent = MathHelper.clamp(currentHp / maxHp, 0.0F, 1.0F);
+      float absorptionPercent = MathHelper.clamp(absorption / maxHp, 0.0F, 1.0F);
+      
+      com.mojang.blaze3d.systems.RenderSystem.enableBlend();
+      com.mojang.blaze3d.systems.RenderSystem.defaultBlendFunc();
+      com.mojang.blaze3d.systems.RenderSystem.setShader(net.minecraft.client.gl.ShaderProgramKeys.POSITION_COLOR);
+      
+      net.minecraft.client.util.math.MatrixStack matrices = ctx.getMatrices();
+      matrices.push();
+      matrices.translate(centerX, centerY, 0);
+      
+      org.joml.Matrix4f matrix = matrices.peek().getPositionMatrix();
+      net.minecraft.client.render.BufferBuilder bufferBuilder = net.minecraft.client.render.Tessellator.getInstance().begin(net.minecraft.client.render.VertexFormat.DrawMode.TRIANGLE_FAN, net.minecraft.client.render.VertexFormats.POSITION_COLOR);
+      
+      // Фон круга (темный)
+      ColorRGBA bgColor = new ColorRGBA(20, 20, 20, (int)(alpha * 180));
+      this.drawCircle(bufferBuilder, matrix, 0, 0, radius, 64, bgColor);
+      net.minecraft.client.render.BufferRenderer.drawWithGlobalProgram(bufferBuilder.end());
+      
+      // Outdated health (серый)
+      if (this.outdatedHealthAnimation.getValue() > healthPercent) {
+         bufferBuilder = net.minecraft.client.render.Tessellator.getInstance().begin(net.minecraft.client.render.VertexFormat.DrawMode.TRIANGLE_FAN, net.minecraft.client.render.VertexFormats.POSITION_COLOR);
+         ColorRGBA outdatedColor = theme.getColor().darker(0.4F).withAlpha(alpha * 255.0F);
+         this.drawCircleSegment(bufferBuilder, matrix, 0, 0, radius - 2.0F, 64, 0.0F, this.outdatedHealthAnimation.getValue(), outdatedColor, outdatedColor);
+         net.minecraft.client.render.BufferRenderer.drawWithGlobalProgram(bufferBuilder.end());
+      }
+      
+      // Health (градиент темы)
+      if (healthPercent > 0.0F) {
+         bufferBuilder = net.minecraft.client.render.Tessellator.getInstance().begin(net.minecraft.client.render.VertexFormat.DrawMode.TRIANGLE_FAN, net.minecraft.client.render.VertexFormats.POSITION_COLOR);
+         ColorRGBA healthColor1 = theme.getSecondColor().withAlpha(alpha * 255.0F);
+         ColorRGBA healthColor2 = theme.getColor().withAlpha(alpha * 255.0F);
+         this.drawCircleSegment(bufferBuilder, matrix, 0, 0, radius - 2.0F, 64, 0.0F, this.healthAnimation.getValue(), healthColor1, healthColor2);
+         net.minecraft.client.render.BufferRenderer.drawWithGlobalProgram(bufferBuilder.end());
+      }
+      
+      // Absorption (золотой)
+      if (absorptionPercent > 0.0F && this.gappleAnimation.getValue() > 0.0F) {
+         bufferBuilder = net.minecraft.client.render.Tessellator.getInstance().begin(net.minecraft.client.render.VertexFormat.DrawMode.TRIANGLE_FAN, net.minecraft.client.render.VertexFormats.POSITION_COLOR);
+         ColorRGBA absColor1 = new ColorRGBA(255, 209, 0, (int)(alpha * 255.0F));
+         ColorRGBA absColor2 = new ColorRGBA(255, 246, 20, (int)(alpha * 255.0F));
+         this.drawCircleSegment(bufferBuilder, matrix, 0, 0, radius - 2.0F, 64, 0.0F, this.gappleAnimation.getValue(), absColor1, absColor2);
+         net.minecraft.client.render.BufferRenderer.drawWithGlobalProgram(bufferBuilder.end());
+      }
+      
+      // Внутренний круг (фон для текста)
+      bufferBuilder = net.minecraft.client.render.Tessellator.getInstance().begin(net.minecraft.client.render.VertexFormat.DrawMode.TRIANGLE_FAN, net.minecraft.client.render.VertexFormats.POSITION_COLOR);
+      ColorRGBA innerBg = new ColorRGBA(15, 15, 15, (int)(alpha * 200));
+      this.drawCircle(bufferBuilder, matrix, 0, 0, radius - 3.5F, 64, innerBg);
+      net.minecraft.client.render.BufferRenderer.drawWithGlobalProgram(bufferBuilder.end());
+      
+      matrices.pop();
+      
+      // Текст HP в центре круга
+      String hpText = String.format("%.0f", currentHp);
+      Font font = Fonts.MEDIUM.getFont(5.5F);
+      float textWidth = font.width(hpText);
+      ctx.drawText(font, hpText, centerX - textWidth / 2.0F, centerY - 2.5F, ColorRGBA.WHITE.withAlpha(alpha * 255.0F));
+      
+      com.mojang.blaze3d.systems.RenderSystem.disableBlend();
+   }
+
+   /**
+    * Рисует полный круг
+    */
+   private void drawCircle(net.minecraft.client.render.BufferBuilder buffer, org.joml.Matrix4f matrix, float x, float y, float radius, int segments, ColorRGBA color) {
+      buffer.vertex(matrix, x, y, 0).color(color.getRed(), color.getGreen(), color.getBlue(), color.getAlpha());
+      
+      for (int i = 0; i <= segments; i++) {
+         float angle = (float) (2.0 * Math.PI * i / segments);
+         float dx = (float) Math.cos(angle) * radius;
+         float dy = (float) Math.sin(angle) * radius;
+         buffer.vertex(matrix, x + dx, y + dy, 0).color(color.getRed(), color.getGreen(), color.getBlue(), color.getAlpha());
+      }
+   }
+
+   /**
+    * Рисует сегмент круга (от startPercent до endPercent) с градиентом
+    */
+   private void drawCircleSegment(net.minecraft.client.render.BufferBuilder buffer, org.joml.Matrix4f matrix, float x, float y, float radius, int segments, float startPercent, float endPercent, ColorRGBA color1, ColorRGBA color2) {
+      if (endPercent <= startPercent) return;
+      
+      // Начинаем с верхней точки (-90 градусов) и идем по часовой стрелке
+      float startAngle = (float) (-Math.PI / 2.0 + 2.0 * Math.PI * startPercent);
+      float endAngle = (float) (-Math.PI / 2.0 + 2.0 * Math.PI * endPercent);
+      
+      buffer.vertex(matrix, x, y, 0).color(color1.getRed(), color1.getGreen(), color1.getBlue(), color1.getAlpha());
+      
+      int segmentCount = (int) Math.ceil(segments * (endPercent - startPercent));
+      for (int i = 0; i <= segmentCount; i++) {
+         float t = (float) i / segmentCount;
+         float angle = startAngle + (endAngle - startAngle) * t;
+         float dx = (float) Math.cos(angle) * radius;
+         float dy = (float) Math.sin(angle) * radius;
+         
+         // Интерполяция цвета
+         ColorRGBA color = this.lerpColor(color1, color2, t);
+         buffer.vertex(matrix, x + dx, y + dy, 0).color(color.getRed(), color.getGreen(), color.getBlue(), color.getAlpha());
+      }
+   }
+
+   /**
+    * Линейная интерполяция между двумя цветами
+    */
+   private ColorRGBA lerpColor(ColorRGBA c1, ColorRGBA c2, float t) {
+      int r = (int) (c1.getRed() + (c2.getRed() - c1.getRed()) * t);
+      int g = (int) (c1.getGreen() + (c2.getGreen() - c1.getGreen()) * t);
+      int b = (int) (c1.getBlue() + (c2.getBlue() - c1.getBlue()) * t);
+      int a = (int) (c1.getAlpha() + (c2.getAlpha() - c1.getAlpha()) * t);
+      return new ColorRGBA(r, g, b, a);
    }
 }
