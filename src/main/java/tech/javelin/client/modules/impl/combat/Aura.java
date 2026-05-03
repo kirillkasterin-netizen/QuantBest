@@ -66,6 +66,8 @@ public final class Aura extends Module {
    private final ModeSetting.Value cake;
    private final ModeSetting.Value legendsGrief;
    private final ModeSetting.Value spTest;
+   private final ModeSetting.Value legit;
+   private final ModeSetting.Value funtime;
    private final ModeSetting correction;
    private final ModeSetting.Value correctionFocus;
    private final ModeSetting.Value correctionGood;
@@ -87,6 +89,7 @@ public final class Aura extends Module {
    public float lastYaw;
    public float lastPitch;
    private final java.util.Random random = new java.util.Random();
+   private final FuntimeRotationHelper funtimeHelper = new FuntimeRotationHelper();
 
    private Aura() {
       this.hvh = new ModeSetting.Value(this.rotationMode, "Vanilla");
@@ -94,6 +97,8 @@ public final class Aura extends Module {
       this.cake = (new ModeSetting.Value(this.rotationMode, "CakeWorld")).select();
       this.legendsGrief = (new ModeSetting.Value(this.rotationMode, "LegendsGrief")).select();
       this.spTest = (new ModeSetting.Value(this.rotationMode, "SPtest"));
+      this.legit = (new ModeSetting.Value(this.rotationMode, "Legit"));
+      this.funtime = (new ModeSetting.Value(this.rotationMode, "Funtime"));
       this.correction = new ModeSetting("Коррекция", new String[0]);
       this.correctionFocus = new ModeSetting.Value(this.correction, "Фокус");
       this.correctionGood = (new ModeSetting.Value(this.correction, "Свободная")).select();
@@ -186,9 +191,11 @@ public final class Aura extends Module {
          this.target = this.updateTarget();
       }
 
+      this.funtimeHelper.notifyTargetChanged(this.target);
+
       if (this.target != null) {
          if (this.isCanAttack() && this.hurtTimer.finished(458L) && !this.target.isBlocking()) {
-            if (!this.spTest.isSelected() && mc.player.isSprinting() && !mc.player.isOnGround() && !mc.player.isSwimming()) {
+            if (!this.spTest.isSelected() && !this.legit.isSelected() && mc.player.isSprinting() && !mc.player.isOnGround() && !mc.player.isSwimming()) {
                mc.player.setSprinting(false);
                mc.getNetworkHandler().sendPacket(new ClientCommandC2SPacket(mc.player, Mode.STOP_SPRINTING));
                if (!AutoSprint.INSTANCE.isEnabled()) {
@@ -209,7 +216,7 @@ public final class Aura extends Module {
    public void onTickMovement(EventTickMovement e) {
       if (this.target != null) {
          if (this.target.isBlocking() && this.hurtTimer.finished(50L)) {
-            if (!this.spTest.isSelected() && mc.player.isSprinting() && !mc.player.isOnGround() && !mc.player.isSwimming()) {
+            if (!this.spTest.isSelected() && !this.legit.isSelected() && mc.player.isSprinting() && !mc.player.isOnGround() && !mc.player.isSwimming()) {
                mc.player.setSprinting(false);
                mc.getNetworkHandler().sendPacket(new ClientCommandC2SPacket(mc.player, Mode.STOP_SPRINTING));
                if (!AutoSprint.INSTANCE.isEnabled()) {
@@ -231,7 +238,7 @@ public final class Aura extends Module {
          Javelin.getInstance().getModuleManager().setAcceleration(0.0F);
          Box box = this.target.getBoundingBox();
          Vec3d eyes = mc.player.getEyePos();
-         Vec3d point = this.hvh.isSelected() ? this.target.getBoundingBox().getCenter() : (this.legendsGrief.isSelected() ? MultipointUtils.getNearestPoint(this.target, (double)this.distance.getCurrent()) : MultipointUtils.getMultipoint(this.target, (double)this.distance.getCurrent()));
+         Vec3d point = this.hvh.isSelected() ? this.target.getBoundingBox().getCenter() : (this.legendsGrief.isSelected() || this.spTest.isSelected() || this.legit.isSelected() || this.funtime.isSelected() ? MultipointUtils.getNearestPoint(this.target, (double)this.distance.getCurrent()) : MultipointUtils.getMultipoint(this.target, (double)this.distance.getCurrent()));
          if (this.target instanceof PlayerEntity && this.predictOnElytra.isEnabled() && mc.player.isGliding() && this.target.isGliding()) {
             point = PredictUtils.predict(this.target, this.target.getPos(), mc.player.getEyePos().distanceTo(this.target.getBoundingBox().getCenter()) > 8.0D ? 8.0F : this.predict.getCurrent());
          }
@@ -305,6 +312,18 @@ public final class Aura extends Module {
             RotationComponent.update(newRot, 360.0F, 360.0F, 360.0F, 360.0F, 0, 1, false);
          }
 
+         if (this.legit.isSelected()) {
+            Rotation newRot = this.calculateLegitRotation(point);
+            RotationComponent.update(newRot, 360.0F, 360.0F, 360.0F, 360.0F, 0, 1, false);
+         }
+
+         if (this.funtime.isSelected()) {
+            Rotation newRot = funtimeHelper.rotateTo(this.target, true, lastYaw, lastPitch);
+            RotationComponent.update(newRot, 360.0F, 360.0F, 360.0F, 360.0F, 0, 1, false);
+            this.lastYaw = newRot.getYaw();
+            this.lastPitch = newRot.getPitch();
+         }
+
          if (this.legendsGrief.isSelected() || this.cake.isSelected()) {
             if (mc.player.isGliding() && this.target.isGliding()) {
                if (this.isBack) {
@@ -369,7 +388,22 @@ public final class Aura extends Module {
       } else if ((!mc.player.isGliding() || !this.target.isGliding()) && mc.player.getEyePos().distanceTo(MultipointUtils.getNearestPoint(this.target, (double)this.distance.getCurrent())) > (double)this.distance.getCurrent()) {
          return false;
       } else {
-         return !this.raycastCheck.isEnabled() || RaytracingUtil.rayTrace(mc.player.getRotationVector(), (double)this.distance.getCurrent(), this.target.getBoundingBox()) || mc.targetedEntity != null || mc.player.isGliding() || this.target.isGliding();
+         boolean canAttackNormal = !this.raycastCheck.isEnabled() || RaytracingUtil.rayTrace(mc.player.getRotationVector(), (double)this.distance.getCurrent(), this.target.getBoundingBox()) || mc.targetedEntity != null || mc.player.isGliding() || this.target.isGliding();
+         if (this.spTest.isSelected() || this.legit.isSelected() || this.funtime.isSelected()) {
+            float f = this.lastPitch * 0.017453292F;
+            float g = -this.lastYaw * 0.017453292F;
+            float h = MathHelper.cos(g);
+            float i = MathHelper.sin(g);
+            float j = MathHelper.cos(f);
+            float k = MathHelper.sin(f);
+            Vec3d lookVec = new Vec3d((double)(i * j), (double)(-k), (double)(h * j));
+            
+            // Защита от GrimAC Hitboxes -> Simulation cascade
+            double safeRange = this.distance.getCurrent() - 0.15;
+            Box safeBox = this.target.getBoundingBox().expand(-0.1);
+            return RaytracingUtil.rayTrace(lookVec, safeRange, safeBox) || mc.player.isGliding() || this.target.isGliding();
+         }
+         return canAttackNormal;
       }
    }
 
@@ -459,11 +493,13 @@ public final class Aura extends Module {
 
    public void onEnable() {
       this.target = null;
+      this.funtimeHelper.reset();
       super.onEnable();
    }
 
    public void onDisable() {
       Javelin.getInstance().getModuleManager().setAcceleration(0.0F);
+      this.funtimeHelper.reset();
       super.onDisable();
    }
 
@@ -569,6 +605,45 @@ public final class Aura extends Module {
          newYaw = lastYaw;
          newPitch = lastPitch;
       }
+
+      lastPitch = newPitch;
+
+      return new Rotation(newYaw, newPitch);
+   }
+
+   private Rotation calculateLegitRotation(Vec3d point) {
+      Vec3d eyes = mc.player.getEyePos();
+      float distToTarget = (float) eyes.distanceTo(point);
+
+      float tpsMultiplier = this.getTpsFactor();
+      float baseSpeed = MathHelper.clamp(distToTarget * 0.35f, 1.2f, 4.0f) * tpsMultiplier;
+
+      Rotation angle = RotationUtil.fromVec3d(point.subtract(eyes));
+      float targetYaw = angle.getYaw();
+      float targetPitch = MathHelper.clamp(angle.getPitch(), -90.0F, 90.0F);
+
+      float yawDiff = MathHelper.wrapDegrees(targetYaw - lastYaw);
+      float pitchDiff = targetPitch - lastPitch;
+
+      if (Math.abs(yawDiff) > 280) {
+         yawDiff = MathHelper.clamp(yawDiff, -280, 280);
+      }
+
+      float smoothFactorBase;
+      if (distToTarget < 3.0f && Math.abs(yawDiff) < 10.0f) {
+         smoothFactorBase = 0.2f;
+      } else if (distToTarget > 5.0f || Math.abs(yawDiff) > 30.0f) {
+         smoothFactorBase = 0.35f;
+      } else {
+         smoothFactorBase = 0.25f;
+      }
+
+      float smoothYaw = yawDiff * smoothFactorBase * (baseSpeed * 0.45f);
+      float smoothPitch = pitchDiff * smoothFactorBase * (baseSpeed * 0.35f);
+
+      float newYaw = lastYaw + smoothYaw;
+      float newPitch = lastPitch + smoothPitch;
+      newPitch = MathHelper.clamp(newPitch, -90.0F, 90.0F);
 
       lastYaw = newYaw;
       lastPitch = newPitch;
