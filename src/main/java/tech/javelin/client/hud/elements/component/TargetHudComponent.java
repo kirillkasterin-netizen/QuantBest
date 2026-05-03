@@ -85,7 +85,10 @@ public class TargetHudComponent extends DraggableHudElement {
       StencilUtil.push();
       DrawUtil.drawMetanoise(ctx.getMatrices(), posX, posY, width, height, this.toggleAnimationMetanoise.getValue(), 3.0F, new ColorRGBA(0, 0, 0, 140), theme.getColor().withAlpha(255));
       StencilUtil.read(1);
-      DrawUtil.drawBlur(ctx.getMatrices(), posX, posY, width, height, 11.0F, BorderRadius.all(3.0F), new ColorRGBA(255, 255, 255, 255.0F * animation));
+      // Отключаем blur для режима Circle, чтобы не было свечения
+      if (!healthMode.equals("Circle")) {
+         DrawUtil.drawBlur(ctx.getMatrices(), posX, posY, width, height, 11.0F, BorderRadius.all(3.0F), new ColorRGBA(255, 255, 255, 255.0F * animation));
+      }
       DrawUtil.drawMetanoise(ctx.getMatrices(), posX, posY, width, height, this.toggleAnimationMetanoise.getValue(), 3.0F, new ColorRGBA(0, 0, 0, 140), theme.getColor().withAlpha(255));
       Identifier skinTextures = null;
       Iterator var11 = mc.getNetworkHandler().getPlayerList().iterator();
@@ -105,11 +108,19 @@ public class TargetHudComponent extends DraggableHudElement {
       this.drawFace(ctx, skinTextures, posX + 4.0F, posY + 4.0F, 22.0F, animation);
       
       MsdfRenderer.renderText(Fonts.REGULAR, target == mc.player ? NameProtect.getCustomName() : target.getNameForScoreboard(), 7.25F, ColorRGBA.WHITE.withAlpha(animation * 255.0F).getRGB(), ctx.getMatrices().peek().getPositionMatrix(), posX + 29.0F, posY + 5.5F, 0.0F, true, 0.7F, 1.0F, 56.0F);
-      ctx.drawText(Fonts.REGULAR.getFont(6.5F), "HP: " + String.format("%.0f", hp) + (target.getAbsorptionAmount() > 0.0F ? String.format(" (%.1f)", target.getAbsorptionAmount()) : "").replace(",", "."), posX + 29.75F, posY + 14.25F, ColorRGBA.WHITE.withAlpha(animation * 255.0F));
       
       if (healthMode.equals("Circle")) {
-         // Рисуем круговой индикатор HP справа
-         this.drawCircleHealth(ctx, posX + width - 18.0F, posY + 15.0F, 12.0F, hp, target.getMaxHealth(), target.getAbsorptionAmount(), animation, theme);
+         // В режиме Circle показываем броню вместо HP текста
+         if (target instanceof PlayerEntity) {
+            this.drawArmor(ctx, (PlayerEntity)target, posX + 29.0F, posY + 14.25F, 0.0F, 0.0F, 0.0F);
+         }
+      } else {
+         // В режиме Bar показываем HP текст
+         ctx.drawText(Fonts.REGULAR.getFont(6.5F), "HP: " + String.format("%.0f", hp) + (target.getAbsorptionAmount() > 0.0F ? String.format(" (%.1f)", target.getAbsorptionAmount()) : "").replace(",", "."), posX + 29.75F, posY + 14.25F, ColorRGBA.WHITE.withAlpha(animation * 255.0F));
+      }
+      
+      if (healthMode.equals("Circle")) {
+         // Круг будет нарисован после StencilUtil.pop()
       } else {
          // Рисуем обычную полоску HP
          DrawUtil.drawRoundedRect(ctx.getMatrices(), posX + 29.0F, posY + 22.0F, width - 33.0F, 3.25F, BorderRadius.all(0.25F), theme.getSecondColor().darker(0.5F).withAlpha(animation * 255.0F), theme.getSecondColor().darker(0.5F).withAlpha(animation * 255.0F), theme.getColor().darker(0.5F).withAlpha(animation * 255.0F), theme.getColor().darker(0.5F).withAlpha(animation * 255.0F));
@@ -122,7 +133,14 @@ public class TargetHudComponent extends DraggableHudElement {
       }
       
       StencilUtil.pop();
-      if (target instanceof PlayerEntity) {
+      
+      // Рисуем круговой индикатор HP ПОСЛЕ StencilUtil.pop(), чтобы он был поверх
+      if (healthMode.equals("Circle")) {
+         this.drawCircleHealth(ctx, posX + width - 15.0F, posY + 15.0F, 9.0F, hp, target.getMaxHealth(), target.getAbsorptionAmount(), animation, theme);
+      }
+      
+      // Броня рисуется только в режиме Bar (в режиме Circle броня уже показана вверху)
+      if (!healthMode.equals("Circle") && target instanceof PlayerEntity) {
          this.drawArmor(ctx, (PlayerEntity)target, posX + 3.0F, posY - 12.0F, 0.0F, 0.0F, 0.0F);
       }
 
@@ -135,8 +153,25 @@ public class TargetHudComponent extends DraggableHudElement {
       float paddingItem = 0.0F;
       float iconX = posX + (5.0F - this.toggleAnimation.getValue() * 5.0F);
       float iconY = posY + 1.0F + (5.0F - this.toggleAnimation.getValue() * 5.0F);
+      
+      // Проверяем режим отображения HP
+      tech.javelin.client.modules.impl.render.Interface interfaceModule = tech.javelin.client.modules.impl.render.Interface.INSTANCE;
+      String healthMode = interfaceModule.targetHudHealthModeSetting.getValue().getName();
+      
       List<ItemStack> armor = player.getInventory().armor;
-      ItemStack[] items = new ItemStack[]{player.getMainHandStack(), player.getOffHandStack(), (ItemStack)armor.get(3), (ItemStack)armor.get(2), (ItemStack)armor.get(1), (ItemStack)armor.get(0)};
+      ItemStack[] items;
+      
+      if (healthMode.equals("Circle")) {
+         // В режиме Circle показываем только броню горизонтально
+         items = new ItemStack[]{(ItemStack)armor.get(3), (ItemStack)armor.get(2), (ItemStack)armor.get(1), (ItemStack)armor.get(0)};
+         iconX = posX;
+         iconY = posY;
+         paddingItem = 1.0F;
+      } else {
+         // В режиме Bar показываем все предметы вертикально
+         items = new ItemStack[]{player.getMainHandStack(), player.getOffHandStack(), (ItemStack)armor.get(3), (ItemStack)armor.get(2), (ItemStack)armor.get(1), (ItemStack)armor.get(0)};
+      }
+      
       Font font = Fonts.MEDIUM.getFont(5.0F);
       ItemStack[] var15 = items;
       int var16 = items.length;
@@ -151,7 +186,12 @@ public class TargetHudComponent extends DraggableHudElement {
             ((DrawContextAccessor)ctx).callDrawItemBar(stack, 0, 0);
             ((DrawContextAccessor)ctx).callDrawCooldownProgress(stack, 0, 0);
             ctx.getMatrices().pop();
-            iconX += boxSizeItem + paddingItem;
+            
+            if (healthMode.equals("Circle")) {
+               iconX += boxSizeItem + paddingItem; // Горизонтально
+            } else {
+               iconX += boxSizeItem + paddingItem; // Вертикально (как было)
+            }
          }
       }
 
@@ -258,107 +298,145 @@ public class TargetHudComponent extends DraggableHudElement {
    }
 
    /**
-    * Рисует круговой индикатор HP с плавным сглаживанием и градиентом темы
+    * Рисует круговой индикатор HP в виде тонкого кольца
     */
    private void drawCircleHealth(CustomDrawContext ctx, float centerX, float centerY, float radius, float currentHp, float maxHp, float absorption, float alpha, Theme theme) {
       float healthPercent = MathHelper.clamp(currentHp / maxHp, 0.0F, 1.0F);
-      float absorptionPercent = MathHelper.clamp(absorption / maxHp, 0.0F, 1.0F);
       
       net.minecraft.client.util.math.MatrixStack matrices = ctx.getMatrices();
       matrices.push();
-      matrices.translate(centerX, centerY, 0);
       
       org.joml.Matrix4f matrix = matrices.peek().getPositionMatrix();
       
+      float outerRadius = radius;
+      float innerRadius = radius - 1.5F; // Тонкое кольцо
+      
+      // Рисуем круговой прогресс HP
+      if (healthPercent > 0.0F) {
+         int themeColor = theme.getColor().getRGB();
+         int bgColor = new ColorRGBA(40, 40, 40, (int)(150 * alpha)).getRGB();
+         this.drawCircularProgressGradient(matrix, centerX, centerY, outerRadius, innerRadius, this.healthAnimation.getValue(), themeColor, bgColor, (int)(alpha * 255));
+      }
+      
+      // Absorption (золотой)
+      if (this.gappleAnimation.getValue() > 0.0F) {
+         int absColor = new ColorRGBA(255, 215, 0, (int)(alpha * 255)).getRGB();
+         int bgColor = new ColorRGBA(40, 40, 40, (int)(150 * alpha)).getRGB();
+         this.drawCircularProgressGradient(matrix, centerX, centerY, outerRadius, innerRadius, this.gappleAnimation.getValue(), absColor, bgColor, (int)(alpha * 255));
+      }
+      
+      matrices.pop();
+      
+      // Текст HP в центре круга
+      String hpText = String.format("%.0f", currentHp);
+      Font font = Fonts.BOLD.getFont(6.0F);
+      float textWidth = font.width(hpText);
+      float textHeight = font.height();
+      ctx.drawText(font, hpText, centerX - textWidth / 2.0F, centerY - textHeight / 2.0F, ColorRGBA.WHITE.withAlpha(alpha * 255.0F));
+   }
+   
+   /**
+    * Рисует круговой прогресс-бар с градиентом и сглаживанием краев
+    */
+   private void drawCircularProgressGradient(org.joml.Matrix4f matrix, float centerX, float centerY, float outerRadius, float innerRadius, float progress, int progressColor, int bgColor, int alpha) {
       com.mojang.blaze3d.systems.RenderSystem.enableBlend();
       com.mojang.blaze3d.systems.RenderSystem.defaultBlendFunc();
       com.mojang.blaze3d.systems.RenderSystem.setShader(net.minecraft.client.gl.ShaderProgramKeys.POSITION_COLOR);
       
-      // Фон круга (темный)
-      ColorRGBA bgColor = new ColorRGBA(20, 20, 20, (int)(alpha * 180));
-      net.minecraft.client.render.BufferBuilder bufferBuilder = net.minecraft.client.render.Tessellator.getInstance().begin(net.minecraft.client.render.VertexFormat.DrawMode.TRIANGLE_FAN, net.minecraft.client.render.VertexFormats.POSITION_COLOR);
-      this.drawCircle(bufferBuilder, matrix, 0, 0, radius, 64, bgColor);
-      net.minecraft.client.render.BufferRenderer.drawWithGlobalProgram(bufferBuilder.end());
+      // Включаем сглаживание
+      org.lwjgl.opengl.GL11.glEnable(org.lwjgl.opengl.GL11.GL_LINE_SMOOTH);
+      org.lwjgl.opengl.GL11.glHint(org.lwjgl.opengl.GL11.GL_LINE_SMOOTH_HINT, org.lwjgl.opengl.GL11.GL_NICEST);
+      org.lwjgl.opengl.GL11.glEnable(org.lwjgl.opengl.GL11.GL_POLYGON_SMOOTH);
+      org.lwjgl.opengl.GL11.glHint(org.lwjgl.opengl.GL11.GL_POLYGON_SMOOTH_HINT, org.lwjgl.opengl.GL11.GL_NICEST);
       
-      // Outdated health (серый)
-      if (this.outdatedHealthAnimation.getValue() > healthPercent) {
-         bufferBuilder = net.minecraft.client.render.Tessellator.getInstance().begin(net.minecraft.client.render.VertexFormat.DrawMode.TRIANGLE_FAN, net.minecraft.client.render.VertexFormats.POSITION_COLOR);
-         ColorRGBA outdatedColor = theme.getColor().darker(0.4F).withAlpha(alpha * 255.0F);
-         this.drawCircleSegment(bufferBuilder, matrix, 0, 0, radius - 2.0F, 64, 0.0F, this.outdatedHealthAnimation.getValue(), outdatedColor, outdatedColor);
-         net.minecraft.client.render.BufferRenderer.drawWithGlobalProgram(bufferBuilder.end());
-      }
+      int segments = 360;
+      float angleStep = (float) (2 * Math.PI / segments);
+      float startAngle = (float) (-Math.PI / 2);
+      float aaWidth = 0.5F;
       
-      // Health (градиент темы)
-      if (healthPercent > 0.0F) {
-         bufferBuilder = net.minecraft.client.render.Tessellator.getInstance().begin(net.minecraft.client.render.VertexFormat.DrawMode.TRIANGLE_FAN, net.minecraft.client.render.VertexFormats.POSITION_COLOR);
-         ColorRGBA healthColor1 = theme.getSecondColor().withAlpha(alpha * 255.0F);
-         ColorRGBA healthColor2 = theme.getColor().withAlpha(alpha * 255.0F);
-         this.drawCircleSegment(bufferBuilder, matrix, 0, 0, radius - 2.0F, 64, 0.0F, this.healthAnimation.getValue(), healthColor1, healthColor2);
-         net.minecraft.client.render.BufferRenderer.drawWithGlobalProgram(bufferBuilder.end());
-      }
+      int bgR = (bgColor >> 16) & 0xFF;
+      int bgG = (bgColor >> 8) & 0xFF;
+      int bgB = bgColor & 0xFF;
       
-      // Absorption (золотой)
-      if (absorptionPercent > 0.0F && this.gappleAnimation.getValue() > 0.0F) {
-         bufferBuilder = net.minecraft.client.render.Tessellator.getInstance().begin(net.minecraft.client.render.VertexFormat.DrawMode.TRIANGLE_FAN, net.minecraft.client.render.VertexFormats.POSITION_COLOR);
-         ColorRGBA absColor1 = new ColorRGBA(255, 209, 0, (int)(alpha * 255.0F));
-         ColorRGBA absColor2 = new ColorRGBA(255, 246, 20, (int)(alpha * 255.0F));
-         this.drawCircleSegment(bufferBuilder, matrix, 0, 0, radius - 2.0F, 64, 0.0F, this.gappleAnimation.getValue(), absColor1, absColor2);
-         net.minecraft.client.render.BufferRenderer.drawWithGlobalProgram(bufferBuilder.end());
-      }
-      
-      // Внутренний круг (фон для текста)
-      bufferBuilder = net.minecraft.client.render.Tessellator.getInstance().begin(net.minecraft.client.render.VertexFormat.DrawMode.TRIANGLE_FAN, net.minecraft.client.render.VertexFormats.POSITION_COLOR);
-      ColorRGBA innerBg = new ColorRGBA(15, 15, 15, (int)(alpha * 200));
-      this.drawCircle(bufferBuilder, matrix, 0, 0, radius - 3.5F, 64, innerBg);
-      net.minecraft.client.render.BufferRenderer.drawWithGlobalProgram(bufferBuilder.end());
-      
-      com.mojang.blaze3d.systems.RenderSystem.disableBlend();
-      
-      matrices.pop();
-      
-      // Текст HP в центре круга (используем жирный шрифт)
-      String hpText = String.format("%.0f", currentHp);
-      Font font = Fonts.BOLD.getFont(6.0F);
-      float textWidth = font.width(hpText);
-      ctx.drawText(font, hpText, centerX - textWidth / 2.0F, centerY - 3.0F, ColorRGBA.WHITE.withAlpha(alpha * 255.0F));
-   }
-
-   /**
-    * Рисует полный круг
-    */
-   private void drawCircle(net.minecraft.client.render.BufferBuilder buffer, org.joml.Matrix4f matrix, float x, float y, float radius, int segments, ColorRGBA color) {
-      buffer.vertex(matrix, x, y, 0).color(color.getRed(), color.getGreen(), color.getBlue(), color.getAlpha());
-      
+      // Рисуем фон (полное кольцо)
+      net.minecraft.client.render.BufferBuilder builder = net.minecraft.client.render.Tessellator.getInstance().begin(net.minecraft.client.render.VertexFormat.DrawMode.TRIANGLE_STRIP, net.minecraft.client.render.VertexFormats.POSITION_COLOR);
       for (int i = 0; i <= segments; i++) {
-         float angle = (float) (2.0 * Math.PI * i / segments);
-         float dx = (float) Math.cos(angle) * radius;
-         float dy = (float) Math.sin(angle) * radius;
-         buffer.vertex(matrix, x + dx, y + dy, 0).color(color.getRed(), color.getGreen(), color.getBlue(), color.getAlpha());
+         float angle = startAngle + angleStep * i;
+         float cos = (float) Math.cos(angle);
+         float sin = (float) Math.sin(angle);
+         float outerX = centerX + cos * outerRadius;
+         float outerY = centerY + sin * outerRadius;
+         float innerX = centerX + cos * innerRadius;
+         float innerY = centerY + sin * innerRadius;
+         builder.vertex(matrix, outerX, outerY, 0).color(bgColor);
+         builder.vertex(matrix, innerX, innerY, 0).color(bgColor);
       }
+      net.minecraft.client.render.BufferRenderer.drawWithGlobalProgram(builder.end());
+      
+      // Рисуем прогресс с градиентом
+      if (progress > 0.001f) {
+         int progressSegments = (int) (segments * progress);
+         int r = (progressColor >> 16) & 0xFF;
+         int g = (progressColor >> 8) & 0xFF;
+         int b = progressColor & 0xFF;
+         
+         builder = net.minecraft.client.render.Tessellator.getInstance().begin(net.minecraft.client.render.VertexFormat.DrawMode.TRIANGLE_STRIP, net.minecraft.client.render.VertexFormats.POSITION_COLOR);
+         for (int i = 0; i <= progressSegments; i++) {
+            float angle = startAngle + angleStep * i;
+            float cos = (float) Math.cos(angle);
+            float sin = (float) Math.sin(angle);
+            float outerX = centerX + cos * outerRadius;
+            float outerY = centerY + sin * outerRadius;
+            float innerX = centerX + cos * innerRadius;
+            float innerY = centerY + sin * innerRadius;
+            
+            float gradientProgress = (float) i / progressSegments;
+            float brightness = 1.0f - (gradientProgress * 0.3f);
+            int currentR = (int)(r * brightness);
+            int currentG = (int)(g * brightness);
+            int currentB = (int)(b * brightness);
+            int currentColor = (alpha << 24) | (currentR << 16) | (currentG << 8) | currentB;
+            
+            builder.vertex(matrix, outerX, outerY, 0).color(currentColor);
+            builder.vertex(matrix, innerX, innerY, 0).color(currentColor);
+         }
+         net.minecraft.client.render.BufferRenderer.drawWithGlobalProgram(builder.end());
+      }
+      
+      org.lwjgl.opengl.GL11.glDisable(org.lwjgl.opengl.GL11.GL_POLYGON_SMOOTH);
+      org.lwjgl.opengl.GL11.glDisable(org.lwjgl.opengl.GL11.GL_LINE_SMOOTH);
+      com.mojang.blaze3d.systems.RenderSystem.disableBlend();
    }
-
+   
    /**
-    * Рисует сегмент круга (от startPercent до endPercent) с градиентом
+    * Рисует сегмент кольца (тонкий круг) с градиентом
     */
-   private void drawCircleSegment(net.minecraft.client.render.BufferBuilder buffer, org.joml.Matrix4f matrix, float x, float y, float radius, int segments, float startPercent, float endPercent, ColorRGBA color1, ColorRGBA color2) {
+   private void drawRingSegment(net.minecraft.client.render.BufferBuilder buffer, org.joml.Matrix4f matrix, float x, float y, float radius, float thickness, int segments, float startPercent, float endPercent, ColorRGBA color1, ColorRGBA color2) {
       if (endPercent <= startPercent) return;
       
-      // Начинаем с верхней точки (-90 градусов) и идем по часовой стрелке
       float startAngle = (float) (-Math.PI / 2.0 + 2.0 * Math.PI * startPercent);
       float endAngle = (float) (-Math.PI / 2.0 + 2.0 * Math.PI * endPercent);
       
-      buffer.vertex(matrix, x, y, 0).color(color1.getRed(), color1.getGreen(), color1.getBlue(), color1.getAlpha());
-      
       int segmentCount = (int) Math.ceil(segments * (endPercent - startPercent));
+      float innerRadius = radius - thickness / 2.0F;
+      float outerRadius = radius + thickness / 2.0F;
+      
       for (int i = 0; i <= segmentCount; i++) {
          float t = (float) i / segmentCount;
          float angle = startAngle + (endAngle - startAngle) * t;
-         float dx = (float) Math.cos(angle) * radius;
-         float dy = (float) Math.sin(angle) * radius;
+         float cos = (float) Math.cos(angle);
+         float sin = (float) Math.sin(angle);
          
          // Интерполяция цвета
          ColorRGBA color = this.lerpColor(color1, color2, t);
-         buffer.vertex(matrix, x + dx, y + dy, 0).color(color.getRed(), color.getGreen(), color.getBlue(), color.getAlpha());
+         
+         // Внутренняя точка
+         buffer.vertex(matrix, x + cos * innerRadius, y + sin * innerRadius, 0)
+               .color(color.getRed(), color.getGreen(), color.getBlue(), color.getAlpha());
+         
+         // Внешняя точка
+         buffer.vertex(matrix, x + cos * outerRadius, y + sin * outerRadius, 0)
+               .color(color.getRed(), color.getGreen(), color.getBlue(), color.getAlpha());
       }
    }
 
