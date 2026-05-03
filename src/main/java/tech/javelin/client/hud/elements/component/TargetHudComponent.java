@@ -37,6 +37,8 @@ public class TargetHudComponent extends DraggableHudElement {
    private final Animation toggleAnimation;
    private final Animation toggleAnimationMetanoise;
    private LivingEntity target;
+   private long targetLostTime = 0;
+   private boolean isTargetLost = false;
 
    public TargetHudComponent(String name, float initialX, float initialY, float windowWidth, float windowHeight, float offsetX, float offsetY, DraggableHudElement.Align align) {
       super(name, initialX, initialY, windowWidth, windowHeight, offsetX, offsetY, align);
@@ -93,7 +95,9 @@ public class TargetHudComponent extends DraggableHudElement {
          skinTextures = DefaultSkinHelper.getSteve().texture();
       }
 
-      DrawUtil.drawPlayerHeadWithRoundedShader(ctx.getMatrices(), skinTextures, posX + 4.0F, posY + 4.0F, 22.0F, BorderRadius.all(3.0F), ColorRGBA.WHITE.withAlpha(animation * 255.0F));
+      // Рендерим лицо в зависимости от режима
+      this.drawFace(ctx, skinTextures, posX + 4.0F, posY + 4.0F, 22.0F, animation);
+      
       MsdfRenderer.renderText(Fonts.REGULAR, target == mc.player ? NameProtect.getCustomName() : target.getNameForScoreboard(), 7.25F, ColorRGBA.WHITE.withAlpha(animation * 255.0F).getRGB(), ctx.getMatrices().peek().getPositionMatrix(), posX + 29.0F, posY + 5.5F, 0.0F, true, 0.7F, 1.0F, 56.0F);
       ctx.drawText(Fonts.REGULAR.getFont(6.5F), "HP: " + String.format("%.0f", hp) + (target.getAbsorptionAmount() > 0.0F ? String.format(" (%.1f)", target.getAbsorptionAmount()) : "").replace(",", "."), posX + 29.75F, posY + 14.25F, ColorRGBA.WHITE.withAlpha(animation * 255.0F));
       DrawUtil.drawRoundedRect(ctx.getMatrices(), posX + 29.0F, posY + 22.0F, width - 33.0F, 3.25F, BorderRadius.all(0.25F), theme.getSecondColor().darker(0.5F).withAlpha(animation * 255.0F), theme.getSecondColor().darker(0.5F).withAlpha(animation * 255.0F), theme.getColor().darker(0.5F).withAlpha(animation * 255.0F), theme.getColor().darker(0.5F).withAlpha(animation * 255.0F));
@@ -139,17 +143,98 @@ public class TargetHudComponent extends DraggableHudElement {
 
    }
 
+   private void drawFace(CustomDrawContext ctx, Identifier skinTexture, float x, float y, float size, float alpha) {
+      tech.javelin.client.modules.impl.render.Interface interfaceModule = tech.javelin.client.modules.impl.render.Interface.INSTANCE;
+      String mode = interfaceModule.targetHudModeSetting.getValue().getName();
+      
+      // Проверяем нужно ли показывать outsmile анимацию
+      if (this.isTargetLost && interfaceModule.targetHudOutSetting.isEnabled()) {
+         long elapsed = System.currentTimeMillis() - this.targetLostTime;
+         int frame = (int) (elapsed / 30) + 1; // 30ms на кадр
+         if (frame >= 1 && frame <= 29) {
+            Identifier outsmileTexture = Identifier.of("javelin", "textures/targethud/outsmile/" + String.format("%04d", frame) + ".png");
+            ctx.drawTexture(outsmileTexture, x, y, size, size, ColorRGBA.WHITE.withAlpha(alpha * 255.0F));
+            return;
+         }
+      }
+      
+      if (mode.equals("Rocket")) {
+
+         int frame = (int) ((System.currentTimeMillis() / 30) % 180);
+         Identifier rocketTexture = Identifier.of("javelin", "textures/targethud/rocket/" + String.format("%03d", frame) + ".png");
+         ctx.drawTexture(rocketTexture, x, y, size, size, ColorRGBA.WHITE.withAlpha(alpha * 255.0F));
+      } else if (mode.equals("Duck")) {
+
+         int frame = (int) ((System.currentTimeMillis() / 30) % 180);
+         Identifier duckTexture = Identifier.of("javelin", "textures/targethud/duck/" + String.format("%03d", frame) + ".png");
+         ctx.drawTexture(duckTexture, x, y, size, size, ColorRGBA.WHITE.withAlpha(alpha * 255.0F));
+      } else if (mode.equals("3D")) {
+
+         float rot = (System.currentTimeMillis() % 6000L) / 6000.0f * 360.0f;
+         float baseX = x + size / 2.0f;
+         float baseY = y + size + 4.0f;
+         float scale = size * 0.7f;
+         this.drawEntity3D(ctx, this.target, baseX, baseY, scale, rot, alpha);
+      } else {
+
+         DrawUtil.drawPlayerHeadWithRoundedShader(ctx.getMatrices(), skinTexture, x, y, size, BorderRadius.all(3.0F), ColorRGBA.WHITE.withAlpha(alpha * 255.0F));
+      }
+   }
+
+   private void drawEntity3D(CustomDrawContext ctx, LivingEntity entity, float x, float y, float scale, float yawDeg, float alpha) {
+      if (entity == null) return;
+      
+      net.minecraft.client.render.entity.EntityRenderDispatcher dispatcher = mc.getEntityRenderDispatcher();
+      net.minecraft.client.util.math.MatrixStack matrices = ctx.getMatrices();
+      
+      matrices.push();
+      matrices.translate(x, y, 50.0);
+      matrices.scale(scale, scale, scale);
+      matrices.multiply(new org.joml.Quaternionf().rotateZ((float) Math.PI));
+      matrices.multiply(net.minecraft.util.math.RotationAxis.POSITIVE_Y.rotationDegrees(yawDeg));
+      
+      dispatcher.setRenderShadows(false);
+      com.mojang.blaze3d.systems.RenderSystem.enableBlend();
+      com.mojang.blaze3d.systems.RenderSystem.defaultBlendFunc();
+      com.mojang.blaze3d.systems.RenderSystem.enableDepthTest();
+      com.mojang.blaze3d.systems.RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, alpha);
+      
+      net.minecraft.client.render.VertexConsumerProvider.Immediate immediate = mc.getBufferBuilders().getEntityVertexConsumers();
+      net.minecraft.client.render.entity.EntityRenderer renderer = dispatcher.getRenderer(entity);
+      if (renderer != null) {
+         int light = renderer.getLight(entity, mc.getRenderTickCounter().getTickDelta(false));
+         net.minecraft.client.render.entity.state.EntityRenderState state = renderer.getAndUpdateRenderState(entity, mc.getRenderTickCounter().getTickDelta(false));
+         if (state != null) {
+            renderer.render(state, matrices, immediate, light);
+         }
+      }
+      immediate.draw();
+      
+      dispatcher.setRenderShadows(true);
+      com.mojang.blaze3d.systems.RenderSystem.disableBlend();
+      com.mojang.blaze3d.systems.RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+      matrices.pop();
+   }
+
    public void setTarget(LivingEntity target) {
       if (target == null) {
+         if (this.target != null && !this.isTargetLost) {
+            // Таргет только что потерян - запускаем outsmile анимацию
+            this.isTargetLost = true;
+            this.targetLostTime = System.currentTimeMillis();
+         }
+         
          this.toggleAnimation.update(0.0F);
          this.toggleAnimationMetanoise.update(0.0F);
          this.toggleAnimationMetanoise.setDuration(2200L);
          this.toggleAnimationMetanoise.setEasing(Easing.CIRC_OUT);
          if (this.toggleAnimationMetanoise.getValue() == 0.0F) {
             this.target = null;
+            this.isTargetLost = false;
          }
       } else {
          this.target = target;
+         this.isTargetLost = false;
          this.toggleAnimationMetanoise.update(1.0F);
          this.toggleAnimationMetanoise.setDuration(1300L);
          this.toggleAnimationMetanoise.setEasing(Easing.CIRC_OUT);

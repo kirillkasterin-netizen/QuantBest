@@ -22,4 +22,22 @@ public class ChatScreenMixin extends Screen implements IMinecraft {
    )
    private void onSendMessage(String text, boolean addToHistory, CallbackInfo ci) {
    }
+
+   @Inject(method = "mouseClicked", at = @At("HEAD"))
+   private void onMouseClicked(double mouseX, double mouseY, int button, org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable<Boolean> cir) {
+       if (button == 1) { // 1 = Right click
+           tech.javelin.client.hud.elements.component.WatermarkComponent.isIslandMode = !tech.javelin.client.hud.elements.component.WatermarkComponent.isIslandMode;
+       }
+   }
+
+   @Inject(method = "render", at = @At("TAIL"))
+   private void onRender(net.minecraft.client.gui.DrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
+       String mode = tech.javelin.client.hud.elements.component.WatermarkComponent.isIslandMode ? "Mode: Island" : "Mode: Crystal";
+       int w = this.client.getWindow().getScaledWidth();
+       int h = this.client.getWindow().getScaledHeight();
+       
+       tech.javelin.utility.render.display.base.color.ColorRGBA color = tech.javelin.Javelin.getInstance().getThemeManager().getCurrentTheme().getColor();
+       
+       context.drawText(this.client.textRenderer, mode, w - this.client.textRenderer.getWidth(mode) - 5, h - 15, color.getRGB(), true);
+   }
 }

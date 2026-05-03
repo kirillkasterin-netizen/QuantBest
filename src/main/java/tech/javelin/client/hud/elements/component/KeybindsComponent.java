@@ -32,33 +32,36 @@ public class KeybindsComponent extends DraggableHudElement {
    public void render(CustomDrawContext ctx) {
       float posX = this.getX();
       float posY = this.getY();
-      float defaultWidth = 53.0F;
-      float height = 14.5F;
+      float headerHeight = 15.0F;
+      float rowHeight = 14.0F;
+      float rowSpacing = 1.5F;
+      float rowGap = 2.0F;
+      float defaultWidth = 0.0F;
+      float moduleIconSize = 6.0F;
+      float moduleIconLeftPadding = 5.0F;
+      float moduleTextGap = 2.5F;
+      float moduleRightPadding = 6.0F;
+      float height = headerHeight;
       boolean isFound = false;
       Iterator var7 = Javelin.getInstance().getModuleManager().getModules().iterator();
 
       while(var7.hasNext()) {
          Module module = (Module)var7.next();
-         if (module.isEnabled() && module.getKeyCode() != -1) {
-            this.alpha.update(1.0F);
+         if (module.getAnimation().getValue() != 0.0F && module.getKeyCode() != -1) {
             isFound = true;
+            break;
          }
       }
 
-      if (!isFound && !(mc.currentScreen instanceof ChatScreen)) {
+      if (isFound || mc.currentScreen instanceof ChatScreen) {
+         this.alpha.update(1.0F);
+      } else {
          this.alpha.update(0.0F);
       }
 
-      if (mc.currentScreen instanceof ChatScreen) {
-         this.alpha.update(1.0F);
-      }
-
       Theme theme = Javelin.getInstance().getThemeManager().getCurrentTheme();
-      DrawUtil.drawBlur(ctx.getMatrices(), posX, posY, this.widthAnimation.getValue(), 14.5F, 11.0F, BorderRadius.all(3.0F), new ColorRGBA(80, 80, 80, 255.0F * this.alpha.getValue()));
-      DrawUtil.drawRoundedRect(ctx.getMatrices(), posX + 15.0F, posY + 1.5F, 0.5F, 12.25F, BorderRadius.all(0.0F), new ColorRGBA(166, 166, 166, 255.0F * this.alpha.getValue()));
-      ctx.drawText(Fonts.ICONS2.getFont(7.0F), "\uf11c", posX + 4.0F, posY + 5.0F, theme.getColor().withAlpha(255.0F * this.alpha.getValue()));
-      ctx.drawText(Fonts.REGULAR.getFont(7.0F), "KeyBinds", posX + 19.5F, posY + 4.75F, (new ColorRGBA(-1)).withAlpha(255.0F * this.alpha.getValue()));
-      posY += 14.5F;
+      float titleWidth = Fonts.MEDIUM.getWidth("Hotkeys", 8.0F);
+      defaultWidth = Math.max(defaultWidth, titleWidth + 26.0F);
       float bindWidth = 0.0F;
       Iterator var9 = Javelin.getInstance().getModuleManager().getModules().iterator();
 
@@ -66,7 +69,7 @@ public class KeybindsComponent extends DraggableHudElement {
       while(var9.hasNext()) {
          module = (Module)var9.next();
          if (module.getAnimation().getValue() != 0.0F && module.getKeyCode() != -1) {
-            float localBindWidth = Fonts.REGULAR.getWidth(Keyboard.getKeyName(module.getKeyCode()), 6.75F);
+            float localBindWidth = Fonts.MEDIUM.getWidth(Keyboard.getKeyName(module.getKeyCode()), 6.75F);
             if (localBindWidth > bindWidth) {
                bindWidth = localBindWidth;
             }
@@ -76,28 +79,58 @@ public class KeybindsComponent extends DraggableHudElement {
       this.xLine.update(bindWidth);
       var9 = Javelin.getInstance().getModuleManager().getModules().iterator();
 
+      float maxFunctionWidth = 0.0F;
       while(var9.hasNext()) {
          module = (Module)var9.next();
          if (module.getAnimation().getValue() != 0.0F && module.getKeyCode() != -1) {
-            height += 11.0F;
-            String bind = Keyboard.getKeyName(module.getKeyCode());
+            float rowAnim = module.getAnimation().getValue();
+            height += (rowHeight + rowSpacing) * rowAnim;
             String moduleName = module.getName();
-            float elementsWidth = Fonts.REGULAR.getWidth(moduleName, 6.75F) + Fonts.REGULAR.getWidth(bind, 6.75F) + 40.0F;
-            DrawUtil.drawBlur(ctx.getMatrices(), posX, posY + module.getAnimation().getValue() * 3.0F - 3.0F, this.widthAnimation.getValue(), 11.0F, 11.0F, BorderRadius.all(3.0F), new ColorRGBA(80, 80, 80, 255.0F * module.getAnimation().getValue() * this.alpha.getValue()));
-            DrawUtil.drawRoundedRect(ctx.getMatrices(), posX + this.widthAnimation.getValue() - 6.5F - this.xLine.getValue(), posY + module.getAnimation().getValue() * 3.0F - 3.0F + 1.5F, 0.5F, 8.75F, BorderRadius.all(0.0F), new ColorRGBA(166, 166, 166, 255.0F * module.getAnimation().getValue() * this.alpha.getValue()));
-            ctx.drawText(Fonts.ICONS.getFont(5.0F), module.getCategory().getIcon(), posX + 3.15F, posY + module.getAnimation().getValue() * 3.0F - 3.0F + 3.5F, theme.getColor().withAlpha(module.getAnimation().getValue() * 255.0F * this.alpha.getValue()));
-            ctx.drawText(Fonts.REGULAR.getFont(6.5F), moduleName, posX + 10.5F, posY + module.getAnimation().getValue() * 3.0F - 3.0F + 3.25F, (new ColorRGBA(-1)).withAlpha(module.getAnimation().getValue() * 255.0F * this.alpha.getValue()));
-            ctx.drawText(Fonts.REGULAR.getFont(6.5F), bind, posX + this.widthAnimation.getValue() - 3.0F - this.xLine.getValue() - Fonts.REGULAR.getWidth(bind, 6.75F) / 2.0F + this.xLine.getValue() / 2.0F, posY + module.getAnimation().getValue() * 3.0F - 3.0F + 3.25F, (new ColorRGBA(-1)).withAlpha(module.getAnimation().getValue() * 255.0F * this.alpha.getValue()));
-            if (elementsWidth > defaultWidth) {
-               defaultWidth = elementsWidth;
+            float iconWidth = Fonts.ICONS.getWidth(module.getCategory().getIcon(), moduleIconSize);
+            float functionWidth = moduleIconLeftPadding + iconWidth + moduleTextGap + Fonts.REGULAR.getWidth(moduleName, 7.0F) + moduleRightPadding;
+            if (functionWidth > maxFunctionWidth) {
+               maxFunctionWidth = functionWidth;
             }
-
-            posY += 11.0F * module.getAnimation().getValue();
          }
       }
 
-      this.widthAnimation.update(defaultWidth);
-      this.width = this.widthAnimation.getValue();
+      float functionBoxWidth = Math.max(12.0F, maxFunctionWidth);
+      float bindBoxWidth = Math.max(12.0F, this.xLine.getValue() + 6.0F);
+      float totalWidth = functionBoxWidth + rowGap + bindBoxWidth;
+      this.widthAnimation.update(isFound ? totalWidth : Math.max(defaultWidth, totalWidth));
+      float panelWidth = this.widthAnimation.getValue();
+      DrawUtil.drawBlur(ctx.getMatrices(), posX, posY, panelWidth, headerHeight, 11.0F, BorderRadius.all(3.0F), new ColorRGBA(70, 70, 70, 255.0F * this.alpha.getValue()));
+      ctx.drawText(Fonts.MEDIUM.getFont(8.0F), "Hotkeys", posX + 16f, posY + 4.4f, ColorRGBA.WHITE.withAlpha(255.0F * this.alpha.getValue()));
+      ctx.drawText(Fonts.ICONS.getFont(9.0F), "O", posX + 4.2F, posY + 4.2f, theme.getColor().withAlpha(255.0F * this.alpha.getValue()));
+      float currentY = posY + headerHeight + rowSpacing;
+      var9 = Javelin.getInstance().getModuleManager().getModules().iterator();
+
+      while(var9.hasNext()) {
+         module = (Module)var9.next();
+         if (module.getAnimation().getValue() != 0.0F && module.getKeyCode() != -1) {
+            String bind = Keyboard.getKeyName(module.getKeyCode());
+            String moduleName = module.getName();
+            float rowAnim = module.getAnimation().getValue();
+            float rowAlpha = rowAnim * this.alpha.getValue();
+            float rowOffset = (1.0F - rowAnim) * 3.0F;
+            float rowY = currentY + rowOffset;
+            String categoryIcon = module.getCategory().getIcon();
+            float iconWidth = Fonts.ICONS.getWidth(categoryIcon, moduleIconSize);
+            float functionWidth = moduleIconLeftPadding + iconWidth + moduleTextGap + Fonts.REGULAR.getWidth(moduleName, 7.0F) + moduleRightPadding;
+            float bindBoxX = posX + functionWidth + rowGap;
+            DrawUtil.drawBlur(ctx.getMatrices(), posX, rowY, functionWidth, rowHeight, 9.0F, BorderRadius.all(2.5F), new ColorRGBA(95, 95, 95, 255.0F * rowAlpha));
+            DrawUtil.drawBlur(ctx.getMatrices(), bindBoxX, rowY, bindBoxWidth, rowHeight, 9.0F, BorderRadius.all(2.5F), new ColorRGBA(95, 95, 95, 255.0F * rowAlpha));
+            float iconX = posX + moduleIconLeftPadding;
+            float textX = iconX + iconWidth + moduleTextGap;
+            ctx.drawText(Fonts.ICONS.getFont(moduleIconSize), categoryIcon, iconX, rowY + 4.15F, theme.getColor().withAlpha(rowAlpha * 255.0F));
+            ctx.drawText(Fonts.MEDIUM.getFont(7.0F), moduleName, textX, rowY + 4.2F, ColorRGBA.WHITE.withAlpha(rowAlpha * 255.0F));
+            float bindX = bindBoxX + (bindBoxWidth - Fonts.MEDIUM.getWidth(bind, 7.0F)) / 1.8F;
+            ctx.drawText(Fonts.MEDIUM.getFont(7.0F), bind, bindX, rowY + 4.5F, ColorRGBA.WHITE.withAlpha(rowAlpha * 255.0F));
+            currentY += (rowHeight + rowSpacing) * rowAnim;
+         }
+      }
+
+      this.width = panelWidth;
       this.height = height;
    }
 }
