@@ -25,6 +25,14 @@ run/*.log
 run/options.txt
 run/usercache.json
 run/usernamecache.json
+run/.fabric/
+run/_IAS_ACCOUNTS_DO_NOT_SEND_TO_ANYONE/
+run/command_history.txt
+run/config/
+run/data/
+run/downloads/
+run/servers.dat
+run/servers.dat_old
 
 # Launch configs
 *.launch
