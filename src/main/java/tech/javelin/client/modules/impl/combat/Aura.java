@@ -65,6 +65,7 @@ public final class Aura extends Module {
    private final ModeSetting.Value lonyJir;
    private final ModeSetting.Value cake;
    private final ModeSetting.Value legendsGrief;
+   private final ModeSetting.Value spTest;
    private final ModeSetting correction;
    private final ModeSetting.Value correctionFocus;
    private final ModeSetting.Value correctionGood;
@@ -85,12 +86,14 @@ public final class Aura extends Module {
    private int lastSlot;
    public float lastYaw;
    public float lastPitch;
+   private final java.util.Random random = new java.util.Random();
 
    private Aura() {
       this.hvh = new ModeSetting.Value(this.rotationMode, "Vanilla");
       this.lonyJir = (new ModeSetting.Value(this.rotationMode, "LonyGrief")).select();
       this.cake = (new ModeSetting.Value(this.rotationMode, "CakeWorld")).select();
       this.legendsGrief = (new ModeSetting.Value(this.rotationMode, "LegendsGrief")).select();
+      this.spTest = (new ModeSetting.Value(this.rotationMode, "SPtest"));
       this.correction = new ModeSetting("Коррекция", new String[0]);
       this.correctionFocus = new ModeSetting.Value(this.correction, "Фокус");
       this.correctionGood = (new ModeSetting.Value(this.correction, "Свободная")).select();
@@ -185,7 +188,7 @@ public final class Aura extends Module {
 
       if (this.target != null) {
          if (this.isCanAttack() && this.hurtTimer.finished(458L) && !this.target.isBlocking()) {
-            if (mc.player.isSprinting() && !mc.player.isOnGround() && !mc.player.isSwimming()) {
+            if (!this.spTest.isSelected() && mc.player.isSprinting() && !mc.player.isOnGround() && !mc.player.isSwimming()) {
                mc.player.setSprinting(false);
                mc.getNetworkHandler().sendPacket(new ClientCommandC2SPacket(mc.player, Mode.STOP_SPRINTING));
                if (!AutoSprint.INSTANCE.isEnabled()) {
@@ -206,7 +209,7 @@ public final class Aura extends Module {
    public void onTickMovement(EventTickMovement e) {
       if (this.target != null) {
          if (this.target.isBlocking() && this.hurtTimer.finished(50L)) {
-            if (mc.player.isSprinting() && !mc.player.isOnGround() && !mc.player.isSwimming()) {
+            if (!this.spTest.isSelected() && mc.player.isSprinting() && !mc.player.isOnGround() && !mc.player.isSwimming()) {
                mc.player.setSprinting(false);
                mc.getNetworkHandler().sendPacket(new ClientCommandC2SPacket(mc.player, Mode.STOP_SPRINTING));
                if (!AutoSprint.INSTANCE.isEnabled()) {
@@ -295,6 +298,11 @@ public final class Aura extends Module {
             RotationComponent.update(new Rotation(smoothRot.getYaw(), smoothRot.getPitch()), 360.0F, 360.0F, !(Math.abs(deltaYaw2) > 3.0F) && !(Math.abs(deltaPitch2) > 3.0F) ? 360.0F : 0.0F, !(Math.abs(deltaYaw2) > 3.0F) && !(Math.abs(deltaPitch2) > 3.0F) ? 360.0F : 0.0F, 0, 1, false);
             this.lastYaw = smoothRot.getYaw();
             this.lastPitch = smoothRot.getPitch();
+         }
+
+         if (this.spTest.isSelected()) {
+            Rotation newRot = this.calculateSTRotation(point);
+            RotationComponent.update(newRot, 360.0F, 360.0F, 360.0F, 360.0F, 0, 1, false);
          }
 
          if (this.legendsGrief.isSelected() || this.cake.isSelected()) {
@@ -457,5 +465,114 @@ public final class Aura extends Module {
    public void onDisable() {
       Javelin.getInstance().getModuleManager().setAcceleration(0.0F);
       super.onDisable();
+   }
+
+   private float getTpsFactor() {
+      return Javelin.getInstance().getServerHandler().getTPS() / 20.0f;
+   }
+
+   private Rotation calculateSTRotation(Vec3d point) {
+      Vec3d eyes = mc.player.getEyePos();
+
+      // значения для каждого тика, можно было сделать в 1 метод, но я как то затупил и мне стало лень
+      float neuroRand1 = random.nextFloat();
+      float neuroRand2 = random.nextFloat();
+      float neuroRand3 = random.nextFloat();
+      float neuroRand4 = random.nextFloat();
+
+      float distToTarget = (float) eyes.distanceTo(point);
+
+      // на близкой дистнации понижаем скорость, на средней повышаем и на дальней очень понижаем
+      float distanceFactor;
+      if (distToTarget < 2.0f) {
+         distanceFactor = 0.8f + neuroRand1 * 0.4f; // 0.8-1.2
+      } else if (distToTarget < 4.0f) {
+         distanceFactor = 1.2f + neuroRand2 * 0.6f; // 1.2-1.8
+      } else {
+         distanceFactor = 0.9f + neuroRand3 * 0.5f; // 0.9-1.4
+      }
+
+      float tpsMultiplier = this.getTpsFactor();
+
+      // базированная ротация скорости
+      float baseSpeed = MathHelper.clamp(distToTarget * 0.25f, 0.8f, 3.0f) *
+              distanceFactor * tpsMultiplier;
+
+      // расчитываем угол цели
+      Rotation angle = RotationUtil.fromVec3d(point.subtract(eyes));
+      float targetYaw = angle.getYaw();
+      float targetPitch = MathHelper.clamp(angle.getPitch(), -90.0F, 90.0F);
+
+      // делаем ротацию 320 градусов в тик вместо 360 что детектит грим
+      float yawDiff = MathHelper.wrapDegrees(targetYaw - lastYaw);
+      float pitchDiff = targetPitch - lastPitch;
+
+      // лимит для AimModulo360
+      if (Math.abs(yawDiff) > 280) {
+         yawDiff = MathHelper.clamp(yawDiff, -280, 280);
+      }
+
+      float smoothFactorBase;
+      
+      // если цель близко и мы почти навели прицел делаем замедление
+      if (distToTarget < 3.0f && Math.abs(yawDiff) < 10.0f) {
+         smoothFactorBase = 0.08f + neuroRand2 * 0.06f; // 0.08-0.14 медленная ротация
+      }
+      // если цель далеко или у нас разница то ускоряемся
+      else if (distToTarget > 5.0f || Math.abs(yawDiff) > 30.0f) {
+         smoothFactorBase = 0.18f + neuroRand3 * 0.12f; // 0.18-0.30 быстрая ротация
+      }
+      // если не, если ничего нам не подошло
+      else {
+         smoothFactorBase = 0.12f + neuroRand1 * 0.08f; // 0.12-0.20
+      }
+
+      // ну tps и в африке tps
+      float tpsAdapt = tpsMultiplier > 1.2f ? 0.9f : (tpsMultiplier < 0.8f ? 1.2f : 1.0f);
+      smoothFactorBase *= tpsAdapt;
+
+      // расчитываем движения для составления базовой ротации
+      float smoothYaw = yawDiff * smoothFactorBase * (baseSpeed * 0.7f);
+      float smoothPitch = pitchDiff * smoothFactorBase * (baseSpeed * 0.5f); // замедляем голову чтобы она не крутилась так часто, что детектит грим при повороте
+
+      // делаем небольшой рандомайз и поддергивания (jitter)
+      if (neuroRand4 < 0.02f) {
+         smoothYaw += (random.nextFloat() - 0.5f) * 1.2f;
+         smoothPitch += (random.nextFloat() - 0.5f) * 0.8f;
+      }
+      // делаем плавную синхру для ротации, делаем маленькую тряску
+      float breathX = (float) Math.sin(System.currentTimeMillis() / 300.0) * 0.03f;
+      float breathY = (float) Math.cos(System.currentTimeMillis() / 500.0) * 0.02f;
+
+      smoothYaw += breathX;
+      smoothPitch += breathY;
+
+      // имитируем промах и резкое движение с маленькой вероятностью, перекручиваем прицел при резких движениях
+      if (random.nextFloat() < 0.05f && Math.abs(yawDiff) > 5.0f) {
+         float overshootFactor = 1.1f + random.nextFloat() * 0.3f;
+         smoothYaw *= overshootFactor;
+      }
+
+      // ротируем базу для изменения
+      float newYaw = lastYaw + smoothYaw;
+      float newPitch = lastPitch + smoothPitch;
+
+      newPitch = MathHelper.clamp(newPitch, -90.0F, 90.0F);
+
+      // фиксим gcd
+      float gcd = Rotation.gcd();
+      newYaw = newYaw - (newYaw - lastYaw) % gcd;
+      newPitch = newPitch - (newPitch - lastPitch) % gcd;
+
+      // если разница с игроком слишком мала, оставляем старый угол и имитируем что нет движения
+      if (Math.abs(newYaw - lastYaw) < 0.01f && Math.abs(newPitch - lastPitch) < 0.01f) {
+         newYaw = lastYaw;
+         newPitch = lastPitch;
+      }
+
+      lastYaw = newYaw;
+      lastPitch = newPitch;
+
+      return new Rotation(newYaw, newPitch);
    }
 }
